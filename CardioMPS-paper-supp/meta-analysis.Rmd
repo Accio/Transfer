@@ -1,0 +1,270 @@
+---
+title: "Meta-analysis of published datasets on cardiomyopathy"
+output:
+  html_document:
+    theme: cerulean
+    highlight: tango
+  pdf_document:
+    dev:pdf
+---
+
+<!--by David: formatting and global options-->
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=6, fig.height=6, 
+                      echo=FALSE, warning=FALSE, message=FALSE, results="hide")
+```
+
+<style type="text/css">
+
+div.authors {
+  font-size: 13px;
+  font-style:italic;
+  color: DimGray;
+}
+body{ /* Normal  */
+   font-family: "Helvetica", "Arial", sans-serif;
+   font-size: 15px;
+   margin: 0 auto;
+   max-width: 50em;
+   line-height: 1.5;
+   padding: 4em 1em;
+   color: #555;
+}
+a {
+  color: #e81c4f;
+}
+td {  /* Table  */
+   font-size: 8px;
+}
+h1 { /* Header 1 */
+ font-size: 24px;
+ color: DarkBlue;
+ margin-top: 1em;
+ padding-top: 1em;
+}
+h2 { /* Header 2 */
+  font-size: 20px;
+  color: DarkBlue;
+  margin-top: 1em;
+  padding-top: 1em;
+}
+h3 { /* Header 3 */
+ font-size: 17px;
+ color: DarkBlue;
+ margin-top: 0.7em;
+ padding-top: 0.7em;
+}
+code.r{ /* Code block */
+  font-size: 10px;
+  padding: 2px 4px;
+  vertical-align: text-bottom;
+}
+pre { /* Code block */
+  font-size: 10px
+  padding: 1em;
+}
+</style>
+
+Meta-analysis of published datasets on cardiomyopathy
+========================================================
+<div class="authors">Jitao David Zhang, August 16th 2016</div>
+
+# Background
+We looked up gene expression datasets on different types of cardiomypathy, including data from _in vitro_ and _in vivo_ models as well as from patients. We would like to test whether pathways revealed by molecular phenotyping that are associatd with the phenotype of diabetic cardiomyopathy are differentially regulated in these models.
+
+# Key findings
+
+# Detailed analysis
+
+```{r lib}
+library(ribiosUtils)
+library(ribiosIO)
+library(latticeExtra)
+library(ribiosPlot)
+outfile <- function(x) file.path("data", x)
+figfile <- function(x) file.path("figures", x)
+```
+
+```{r readInPubData}
+dgeDir <- "data-mining-2-destdir//DGE-outdirs"
+sigGage <- readMatrix(file.path("/homebasel/biocomp/zhangj83/projects/2015-03-MPScardio",
+                                "edgeR-postanalysis-byPlate", 
+                                "sigGageMatrix-heatmap.txt"))
+sigSets <- colnames(sigGage)
+readCameraMPS <- function(file, sets) {
+  tbl <- readMatrix(file, as.matrix=FALSE, row.names=FALSE)
+  mps <- subset(tbl, GeneSet %in% sets)
+  mps$Score <- with(mps, ifelse(Direction=="Up", 1, -1)*abs(log10(PValue)))
+  mps$Study <- basename(dirname(file))
+  mps <- mps[,c("Study", "Contrast", "GeneSet", "Score", "NGenes", "Correlation",
+                "Direction", "PValue", "FDR")]
+  return(mps)
+
+}
+collectCameraMPS <- function(dir, sets=sigSets) {
+  files <- dir(dir, pattern="camera-results.txt", recursive=TRUE)
+  tbls <- lapply(file.path(dir, files), function(file) readCameraMPS(file, sets=sets))
+  res <- do.call(rbind, tbls)
+  res$GeneSet <- droplevels(res$GeneSet)
+  res$StudyContrast <- with(res, paste(Study, Contrast, sep="."))
+  return(res)
+}
+cameraMPSfile <- outfile("camera-MPS-results.RData")
+if(!loadFile(cameraMPSfile)) {
+  cameraMPS <- collectCameraMPS(dgeDir, sets=sigSets)
+  isGSE51483 <- grepl("^GSE51483", cameraMPS$StudyContrast)
+  cmMPS <- subset(cameraMPS, !isGSE51483)
+  studyContrasts <- unique(cmMPS$StudyContrast)
+  posContrasts <- c("GSE16909.EF", "GSE54893.MCATwithAZT_vs_MCAT")
+  save(cameraMPS, cmMPS, posContrasts, file=cameraMPSfile)
+}
+```
+
+```{r priPre, fig.show='hide'}
+sigGageOrd <- biosHeatmap(sigGage, hclust=function(x) hclust(x, method="ward.D2"), zlim=c(-2,2),
+                          col="royalbluered", color.key.title="Pathway score",
+                          cexCol=0.8)
+```
+
+## Pathway-contrast matrix in the data mining
+The following figures __are for internal discussions and not for publications__. It shows that favorable pathways identified in the molecular phenotyping (blue columns) are more likely to be down-regulated in conditions associated with cardiomyopathy, because in many studies they are negatively regulated; the pathways identified as unfavorable pathways are more likely to be up-regulated in conditions associated with cardiomyopathy, because in many studies they are positively regulated. 
+
+```{r transform,fig.height=8, fig.width=8}
+ordSigSets <- sigSets[sigGageOrd$colInd]
+cmMat <- t(longdf2matrix(cmMPS[c("GeneSet", "StudyContrast", "Score")])[ordSigSets,])
+isPosCM <- rownames(cmMat) %in% posContrasts
+cmMat[isPosCM,] <- -cmMat[isPosCM]
+isGoodPath <- 1:ncol(sigGage)<=grep("Triacyl", ordSigSets, ignore=TRUE)
+goodPaths <- colnames(sigGage)[isGoodPath]
+goodPathCol <- "#b2182b"
+badPathCol <- "#2166ac" 
+cmPathCol <- ifelse(isGoodPath, goodPathCol, badPathCol)
+biosHeatmap(cmMat, Rowv=TRUE, Colv=TRUE,  scale="row",
+            lhei=c(1,8),
+            ColSideColor=cmPathCol,
+            hclust=function(x) hclust(x, method="ward.D2"),
+            color.key.title="Pathway score", col="royalbluered",
+            zlim=c(-2,2), cexRow=1.1, cexCol=1.1)
+```
+
+The following plot further shows that enrichment scores of favorable pathways are on average lower than those of unfavorable pathways (p=5.7E-8, Wilcoxon test).
+
+```{r pathwayContrastList, fig.width=5, fig.height=5}
+pcScores <- list(favPath=as.vector(cmMat[, isGoodPath]),
+                 unfavPath=as.vector(cmMat[, !isGoodPath]))
+boxplot(pcScores, outline=FALSE, names=c("Favorable pathways", "Unfavorable pathways"),
+        ylim=c(-2.5,2.5),
+        ylab="Pathway enrichment score in published studies",
+        col=c(goodPathCol, badPathCol))
+wilcox.test(pcScores[[1]], pcScores[[2]]) ## p=5.7E-8
+```
+
+## Compound-disease matrix
+We compare pathway regulations in conditions associated with cardiomyopathy and pathway regulations by the compounds (including controls) in the molecular phenotypic screening. We observe that most compounds that positively modulate cardiomyocytes' phenotype in the screen have pathway modulation profiles that are negatively associated with pathway modulation profiles of most conditions associated with cardiomyopathy.
+
+```{r cor, fig.height=7, fig.width=7}
+cpdInd <- rev(sigGageOrd$rowInd)
+isPos <- 1:nrow(sigGage)>=grep("Manoalide", rownames(sigGage)[cpdInd])
+posComps <- rownames(sigGage)[cpdInd][isPos]
+cmGageCor <- cor(t(sigGage[cpdInd,]), t(cmMat), method="pearson")
+biosHeatmap(cmGageCor,  
+            lhei=c(1,6), labRow=NA,
+            RowSideColor=ifelse(isPos, "#4682b4", "#eeeedd"),
+            hclust=function(x) hclust(x, method="ward.D2"),
+            color.key.title="Pearson correlation", col="royalbluered",
+            Rowv=TRUE, Colv=TRUE, zlim=c(-0.6, .6), cexCol=1.5)
+```
+
+## Compound-disease correlation
+```{r compDiseaseCor, fig.width=6, fig.height=6}
+avgPosProfile <- apply(sigGage[posComps,], 2, median)
+posPubCor <- sort(apply(cmMat, 1, function(x) cor(avgPosProfile, x, method="pearson")), decreasing=TRUE)
+compactPar(mar=c(15,5,1,1), mgp=c(1.5,0.5,0),mfrow=c(1,1))
+##sigCor <- -0.301 ## p<0.05
+sigCor <- -0.2576
+posPubCorNeg <- names(which(posPubCor < 0))
+posPubCorSig <- names(which(posPubCor < sigCor))
+posPubCorCol <- rep("darkgray", length(posPubCor))
+
+posPubCorCol[posPubCor < 0] <- "#DE9E9E"
+posPubCorCol[posPubCor < sigCor] <- "red"
+plot(posPubCor, type="h",  ylim=c(-.6, 0.4),
+     col=posPubCorCol,  lwd=2.5,
+     xaxt="n", xlab="", ylab="Correlation of pathway-regulation\nbetween CM and positive compounds")
+abline(h=0)
+abline(h=sigCor, col="red", lty=2)
+axis(1, at=seq(along=posPubCor), label=names(posPubCor), las=3, cex.axis=0.75, tck=0)
+```
+
+In more than 80% (N=`r length(posPubCorNeg)`) cases of all comparisons based on published gene expression data (N=`r length(posPubCor)`), the correlation between the two is negative (pink); set the significance level of correlation test at 0.10, in `r percentage(length(posPubCorSig)/length(posPubCor), "1.0")` of the comparisons (N=`r length(posPubCorSig)`) the pathway-level regulation in cardiomyopathy conditions are negatively and significantly associated with the regulation by positive compounds identified in the molecular phenotyping (red bars in the plot). 
+
+## Examples
+```{r corExample, fig.height=3.5, fig.width=5.6} 
+plotCor <- function(contrast, method="pearson", xlab="", ylab=contrast, 
+                    xlim=c(-2.5, 1.5), ylim=c(-3,3.8),...) {
+  y <- scale(cmMat[contrast,], center=FALSE)
+  x <- scale(avgPosProfile, center=FALSE)
+  isGoodPath <- names(avgPosProfile) %in% goodPaths
+  col <- ifelse(isGoodPath, goodPathCol, badPathCol)
+  pch <- ifelse(isGoodPath, 24, 25)
+  plot(x,y, xlab=xlab, ylab=ylab, pch=pch, bg=col, xlim=xlim, ylim=ylim, xaxt="n",  yaxt="n",...)
+  axis(1, at=c(seq(-2, 1)))
+  axis(2, at=seq(-3,3), labels=FALSE)
+  axis(2, at=c(-3, -1, 0, 1, 3))
+  corVal <- cor(x,y, method=method)
+  corP <- cor.test(x,y, method=method)$p.value
+  text(par("usr")[2], 3.4, pos=2,
+       sprintf("cor=%1.2f (p%s)", corVal, ifelse(corP<0.005, "<0.01", sprintf("=%.2f", corP))),
+       col="#334455",
+       bty="n", cex=1.2)
+  lmodel <- lm(y~x)
+  pp <- predict(lmodel, list(x=x), interval="confidence")
+  lmCol <- c("#334455")
+  abline(lmodel, col=lmCol)
+  ord <- order(x)
+  lines(x[ord], pp[ord,1], col=lmCol, lty=1, lwd=1.5)
+  lines(x[ord], pp[ord,2], col=lmCol, lty=2, lwd=1.5)
+  lines(x[ord], pp[ord,3], col=lmCol, lty=2, lwd=1.5)
+}
+
+compactPar(mfrow=c(2,3), mgp=c(1.5,0.5,0), cex.lab=1.1,cex.axis=1)
+plotCor("GSE16909.EP4_KO",main="EP4-/- model (mouse)")
+plotCor("GSE54893.MCATwithAZT_vs_MCAT",main="MCAT model (mouse)")
+plotCor("GSE68857.PRKCEtransgen", main="PRKe model (mouse)")
+plotCor("GSE52601.ICM", main="ICM biopsy (human)")
+plotCor("GSE71613.DCM", main="DCM biopsy (human)")
+plotCor("GSE67492.IDC", main="IDC biopsy (human)")
+```
+
+## Pathway profiles in studies showing negative correlations only
+We show pathway profiles only in studies where the pathway regulation is negatively associated
+```{r negCor, fig.height=5, fig.width=7}
+biosHeatmap(cmMat[posPubCorSig,], Rowv=FALSE, Colv=FALSE,  scale="row",
+            lhei=c(1,8),
+            ColSideColor=cmPathCol,
+            hclust=function(x) hclust(x, method="ward.D2"),
+            color.key.title="Pathway score", col="royalbluered",
+            zlim=c(-2,2))
+```
+
+The boxplot below reveals that while favorable pathways tend to be negatively regulated in cardiomyopathy models or biopsies of patients (p=.053, Wilcoxon test), unfavorable pathways tend to be positively regulated (p<2.2E-16, Wilcoxon test)
+
+```{r sigNegCorWilcoxon, fig.height=4, fig.width=1.8}
+pcSigScores <- list(favPath=as.vector(cmMat[posPubCorSig, isGoodPath]),
+                  unfavPath=as.vector(cmMat[posPubCorSig, !isGoodPath]))
+compactPar(mar=c(9,3,1,1))
+boxplot(pcSigScores, outline=FALSE, 
+        ylim=c(-2.5,3.3), xaxt="n",
+        ylab="Pathway activity score in cardiomypathy",
+        col=c(goodPathCol, badPathCol))
+axis(1, at=1:2, labels=FALSE)
+text(1:2, par("usr")[3]-0.25,  adj=1,
+     labels=c("Favorable pathways", "Unfavorable pathways"),
+     srt=60, xpd=TRUE)
+abline(h=0, col="darkgray", lwd=1.5, lty=2)
+wilcox.test(pcSigScores[[1]], pcSigScores[[2]]) ## p<2.2e-16
+
+```
+
+
