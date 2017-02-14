@@ -1,6 +1,14 @@
 Custom scripts to calculate pathway enrichment scores from gene expression data and to analyse GEO studies
 ===
+Jitao David Zhang, 14.02.2017
 
-Jitao David Zhang, 09.02.2017
+Supplementary file for the publication _Disease molecular information to empower drug discovery: a proof of concept study_ by Drawnel _et al._
 
-TODO
+* Code to generate pathway activity scores: myGage.R
+* Code to re-analysed published GEO studies
+** Collect data: collect-data.R and collect-data-2.R (the data were collected in two batches ochronographically)
+** Re-analyse the data and associate pathway activity patterns: meta-analysis.Rmd
+
+Note that for the function to execute you may need to install the ribios package suite, which is open-source and freely available from [GitHub](https://github.com/Accio/ribios).
+
+In case of questions please contact [Jitao David Zhang](mailto:jitao_david.zhang@roche.com).
