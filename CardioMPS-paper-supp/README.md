@@ -6,8 +6,8 @@ Supplementary file for the publication _Disease molecular information to empower
 
 * Code to generate pathway activity scores: myGage.R
 * Code to re-analysed published GEO studies
-** Collect data: collect-data.R and collect-data-2.R (the data were collected in two batches ochronographically)
-** Re-analyse the data and associate pathway activity patterns: meta-analysis.Rmd
+  ** Collect data: collect-data.R and collect-data-2.R (the data were collected in two batches ochronographically)
+  ** Re-analyse the data and associate pathway activity patterns: meta-analysis.Rmd
 
 Note that for the function to execute you may need to install the ribios package suite, which is open-source and freely available from [GitHub](https://github.com/Accio/ribios).
 
